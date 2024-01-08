@@ -1,4 +1,4 @@
-module github.com/sid-sun/sample-bot
+module github.com/sid-sun/ntfy.tg
 
 go 1.13
 

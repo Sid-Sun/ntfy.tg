@@ -1,15 +1,22 @@
 package bot
 
 import (
-	"github.com/sid-sun/sample-bot/cmd/config"
-	"github.com/sid-sun/sample-bot/pkg/bot/router"
+	"github.com/sid-sun/ntfy.tg/cmd/config"
+	"github.com/sid-sun/ntfy.tg/pkg/bot/router"
+	"github.com/sid-sun/ntfy.tg/pkg/subscriber"
+	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
 	"go.uber.org/zap"
 )
 
 // StartBot starts the bot, inits all the requited submodules and routine for shutdown
 func StartBot(cfg config.Config, logger *zap.Logger) {
-	ch := router.New(cfg.Bot, logger).NewUpdateChan()
+	restartChan := make(chan bool, 1)
+	subscriptionmanager.InitSubscriptions(restartChan)
+	router := router.New(cfg.Bot, logger)
+	botInstance := router.GetBot()
+	sub := subscriber.NewSubscriber(botInstance, restartChan)
+	go sub.Subscribe()
 
 	logger.Info("[StartBot] Started Bot")
-	ch.ListenAndServe()
+	router.NewUpdateChan().ListenAndServe()
 }
