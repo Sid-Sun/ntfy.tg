@@ -14,7 +14,7 @@ func StartBot(cfg config.Config, logger *zap.Logger) {
 	subscriptionmanager.InitSubscriptions(restartChan)
 	router := router.New(cfg.Bot, logger)
 	botInstance := router.GetBot()
-	sub := subscriber.NewSubscriber(botInstance, restartChan)
+	sub := subscriber.NewSubscriber(botInstance, restartChan, logger)
 	go sub.Subscribe()
 
 	logger.Info("[StartBot] Started Bot")
