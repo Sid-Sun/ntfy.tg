@@ -45,7 +45,7 @@ func InitSubscriptions(rsc chan bool) {
 	subscriptions["verysecrettopic_7378273298273298"] = []int64{config.GetConfig().GetAdminChatID()}
 	// for topic, chats := range subscriptions {
 	// 	for _, chatID := range chats {
-	// 		fmt.Printf("Subscribed to %s: %d\n", topic, chatID)
+	// 		log.Printf("Subscribed to %s: %d\n", topic, chatID)
 	// 	}
 	// }
 }

@@ -1,13 +1,14 @@
 package subscriber
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/gorilla/websocket"
 	"github.com/leonklingele/passphrase"
 	"github.com/sid-sun/ntfy.tg/cmd/config"
 	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
@@ -15,9 +16,10 @@ import (
 )
 
 type Subscriber struct {
-	bot         *tgbotapi.BotAPI
-	restartChan chan bool
-	logger      *zap.Logger
+	bot             *tgbotapi.BotAPI
+	restartChan     chan bool
+	logger          *zap.Logger
+	lastMessageTime int64
 }
 
 func getRandomName() string {
@@ -27,45 +29,101 @@ func getRandomName() string {
 }
 
 func (s Subscriber) Subscribe() {
+	var conn *websocket.Conn
+	var err error
+	startConnection := func() error {
+		since := s.lastMessageTime
+		if since == 0 {
+			since = time.Now().Unix()
+		}
+		conn, _, err = websocket.DefaultDialer.Dial(s.getSubscribeURL(since), nil)
+		if err == nil {
+			conn.SetPingHandler(nil)
+			s.logger.Info("[subscriber] [Subscribe] [startConnection] connected to ntfy")
+			go s.listenForMessages(conn)
+			return nil
+		}
+		if err != nil {
+			s.logger.Sugar().Errorf("[subscriber] [Subscribe] [startConnection] error connecting to ntfy: %s", err.Error())
+			return err
+		}
+		return nil
+	}
 
-	name := getRandomName()
-	s.informAdmin(fmt.Sprintf("Subscribing to ntfy [%s]", name))
-	s.logger.Sugar().Infof("Subscribing to ntfy [%s]\n", name)
-	defer func() {
-		s.informAdmin(fmt.Sprintf("Unsubscribing from ntfy [%s]", name))
-		s.logger.Sugar().Infof("Unsubscribing from ntfy [%s]\n", name)
-	}()
-
-	resp, err := http.Get(s.getSubscribeURL())
+	err = backoff.Retry(startConnection, backoff.NewExponentialBackOff())
 	if err != nil {
+		s.logger.Sugar().Errorf("exponential backoff retry error: %s", err.Error())
 		return
 	}
-	defer resp.Body.Close()
-	go func() {
+
+	defer conn.Close()
+
+	for {
 		<-s.restartChan
-		resp.Body.Close()
-		s.Subscribe()
+		s.logger.Info("[subscriber] [Subscribe] Restarting connection - restart signal received")
+		conn.Close()
+
+		// defer conn.Close() is not required here
+		// as defer is already called and only underlying resp will change
+		err := backoff.Retry(startConnection, backoff.NewExponentialBackOff())
+		if err != nil {
+			s.logger.Sugar().Errorf("exponential backoff retry error: %s", err.Error())
+			return
+		}
+	}
+}
+
+func (s Subscriber) listenForMessages(conn *websocket.Conn) {
+	name := getRandomName()
+	s.informAdmin(fmt.Sprintf("Subscribing to ntfy [%s]", name))
+	s.logger.Sugar().Infof("[subscriber] [listenForMessages] Subscribing to ntfy [%s]\n", name)
+	defer func() {
+		// spin informAdmin in a different routine as this is a blocking call to tg api library
+		// and if we are exiting due to connection reset / timeout
+		// that call would otherwise block return in cases of issues on our side
+		go s.informAdmin(fmt.Sprintf("Unsubscribing from ntfy [%s]", name))
+		s.logger.Sugar().Infof("[subscriber] [listenForMessages] Unsubscribing from ntfy [%s]\n", name)
 	}()
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
+
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			s.logger.Sugar().Errorf("Error reading message:", err)
+
+			// this error is thrown when conn is closed by Subscribe for a restart
+			// if it is not handled, a restart loop is triggered
+			if strings.Contains(err.Error(), "use of closed network connection") {
+				return
+			}
+
+			// we want to restart here as an error here means the connection has broken
+			// the message to look for is "connection timed out" but this works too, no quirks so far
+			s.restartChan <- false
+			return
+		}
+
+		// s.logger.Sugar().Infof("[subscriber] [listener] Received a new message, time since last message: %d\n", (time.Now().Unix() - s.lastMessageTime))
+
+		// handle message
 		var m message
-		err := json.Unmarshal(scanner.Bytes(), &m)
+		err = json.Unmarshal(msg, &m)
 		if err != nil {
 			panic(err)
 		}
 		if m.Event == "message" {
 			go s.sendToChats(m)
 		}
+		s.lastMessageTime = m.Time
 	}
 }
 
-func (s Subscriber) getSubscribeURL() string {
+func (s Subscriber) getSubscribeURL(since int64) string {
 	topics := []string{}
 	for topic := range subscriptionmanager.GetSubscriptions() {
 		topics = append(topics, topic)
 	}
 	allTopics := strings.Join(topics, ",")
-	return fmt.Sprintf("https://ntfy.sh/%s/json", allTopics)
+	return fmt.Sprintf("wss://ntfy.sh/%s/ws?since=%d", allTopics, since)
 }
 
 func (s Subscriber) sendToChats(m message) {
