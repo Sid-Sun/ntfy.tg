@@ -1,8 +1,9 @@
 package config
 
 import (
-	"os"
-	"strconv"
+	"strings"
+
+	"github.com/spf13/viper"
 )
 
 var cfg Config
@@ -19,6 +20,7 @@ type Config struct {
 	Bot           BotConfig
 	adminChatId   int64
 	environment   string
+	PingURLs      []string
 }
 
 // GetEnv returns the current developemnt environment
@@ -33,19 +35,21 @@ func (c Config) GetAdminChatID() int64 {
 
 // Load reads all config from env to config
 func Load() Config {
-	adminChatId, _ := strconv.ParseInt(os.Getenv("ADMIN_CHAT_ID"), 10, 64)
+	viper.AutomaticEnv()
 	cfg = Config{
-		environment: os.Getenv("APP_ENV"),
-		adminChatId: adminChatId,
+		environment: viper.GetString("APP_ENV"),
+		adminChatId: viper.GetInt64("ADMIN_CHAT_ID"),
 		Bot: BotConfig{
-			tkn: os.Getenv("API_TOKEN"),
+			tkn: viper.GetString("API_TOKEN"),
 		},
 		StorageEngine: StorageEngineConfig{
-			URL:            os.Getenv("SE_URL"),
-			ObjectID:       os.Getenv("SE_OBJ_ID"),
-			ObjectPassword: os.Getenv("SE_OBJ_PASS"),
+			URL:            viper.GetString("SE_URL"),
+			ObjectID:       viper.GetString("SE_OBJ_ID"),
+			ObjectPassword: viper.GetString("SE_OBJ_PASS"),
 		},
+		PingURLs: strings.Split(viper.GetString("PING_URLS"), ";"),
 	}
+
 	return cfg
 }
 
