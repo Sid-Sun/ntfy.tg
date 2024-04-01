@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"slices"
 	"sync"
 
 	"github.com/fitant/storage-engine-go/storageengine"
@@ -19,7 +20,6 @@ func SubscribeChatToTopic(topic string, chatID int64) {
 	if subscriptions[topic] == nil {
 		subscriptionsMutex.Lock()
 		subscriptions[topic] = []int64{chatID}
-		restartChan <- true
 		subscriptionsMutex.Unlock()
 		saveToSE()
 		return
@@ -30,6 +30,64 @@ func SubscribeChatToTopic(topic string, chatID int64) {
 		}
 	}
 	subscriptions[topic] = append(subscriptions[topic], chatID)
+}
+
+func GetChatSubscriptions(chatID int64) []string {
+	var topics []string
+	for topic, chats := range subscriptions {
+		for _, id := range chats {
+			if id == chatID {
+				topics = append(topics, topic)
+			}
+		}
+	}
+	return topics
+}
+
+func UnSubscribeChatFromAllTopics(chatID int64) []string {
+	var changed bool
+	subscriptionsMutex.Lock()
+	var unsubscribedTopics []string
+	for topic, chats := range subscriptions {
+		subscriptions[topic] = slices.DeleteFunc(chats, func(n int64) bool {
+			if n == chatID {
+				unsubscribedTopics = append(unsubscribedTopics, topic)
+				changed = true
+				return true
+			}
+			return false
+		})
+		if len(subscriptions[topic]) == 1 && subscriptions[topic][0] == 0 {
+			delete(subscriptions, topic)
+		}
+	}
+	subscriptionsMutex.Unlock()
+	if changed {
+		saveToSE()
+	}
+	return unsubscribedTopics
+}
+
+func UnSubscribeChatToTopic(topic string, chatID int64) {
+	if subscriptions[topic] == nil {
+		return
+	}
+	var changed bool
+	subscriptionsMutex.Lock()
+	subscriptions[topic] = slices.DeleteFunc(subscriptions[topic], func(n int64) bool {
+		if n == chatID {
+			changed = true
+			return true
+		}
+		return false
+	})
+	if changed && len(subscriptions[topic]) == 1 && subscriptions[topic][0] == 0 {
+		delete(subscriptions, topic)
+	}
+	subscriptionsMutex.Unlock()
+	if changed {
+		saveToSE()
+	}
 }
 
 func GetSubscriptions() map[string][]int64 {
@@ -65,6 +123,7 @@ func saveToSE() {
 	if err != nil {
 		panic(err)
 	}
+	restartChan <- true
 }
 
 func loadDataFromSE() {

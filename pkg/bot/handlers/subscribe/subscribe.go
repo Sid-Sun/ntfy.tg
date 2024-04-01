@@ -34,7 +34,7 @@ func Handler(bot *tgbotapi.BotAPI, update tgbotapi.Update, logger *zap.Logger) {
 
 	_, err := bot.Send(msg)
 	if err != nil {
-		logger.Sugar().Errorf("[%s] [%s] %s", handler, "Send", err.Error())
+		logger.Sugar().Errorf("[Subscribe] [Send] %s", err.Error())
 		return
 	}
 

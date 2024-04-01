@@ -5,8 +5,10 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/sid-sun/ntfy.tg/cmd/config"
-	"github.com/sid-sun/ntfy.tg/pkg/bot/handlers/repeat"
 	"github.com/sid-sun/ntfy.tg/pkg/bot/handlers/subscribe"
+	"github.com/sid-sun/ntfy.tg/pkg/bot/handlers/subscriptions"
+	"github.com/sid-sun/ntfy.tg/pkg/bot/handlers/unsubscribe"
+	"github.com/sid-sun/ntfy.tg/pkg/bot/handlers/unsubscribeall"
 	"go.uber.org/zap"
 )
 
@@ -25,15 +27,30 @@ func (u updates) ListenAndServe() {
 			if update.Message == nil {
 				return
 			}
+			helpMessage := "Hi! Here are my commands:\n/subscribe <topic> to subscribe to a topic\n/unsubscribe <topic> unsubscribe from a topic\n/unsubscribeall ⚠️ to unsub from all topics ⚠️\n/subscriptions to list your subs"
 			if update.Message.IsCommand() {
 				switch update.Message.Command() {
 				case "subscribe":
 					subscribe.Handler(u.bot, update, u.logger)
 					return
+				case "unsubscribe":
+					unsubscribe.Handler(u.bot, update, u.logger)
+				case "unsubscribeall":
+					unsubscribeall.Handler(u.bot, update, u.logger)
+				case "subscriptions":
+					subscriptions.Handler(u.bot, update, u.logger)
+				case "start":
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Welcome to ntfy.tg, to subscribe to a topic send: /subscribe <topic> to see help, send: /help")
+					u.bot.Send(msg)
+				case "help":
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, helpMessage)
+					u.bot.Send(msg)
 				default:
 				}
+			} else {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, helpMessage)
+				u.bot.Send(msg)
 			}
-			repeat.Handler(u.bot, update, u.logger)
 		}()
 	}
 }
