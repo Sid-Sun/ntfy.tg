@@ -131,12 +131,14 @@ func (s Subscriber) sendToChats(m message) {
 	for _, chatID := range subs[m.Topic] {
 		var msg tgbotapi.MessageConfig
 		if m.Title == "" {
-			msg = tgbotapi.NewMessage(chatID, fmt.Sprintf("_%s_\n\n`%s`\n", m.Topic, m.Message))
+			msg = tgbotapi.NewMessage(chatID, fmt.Sprintf("Topic: %s \n\nMessage: %s \n", m.Topic, m.Message))
 		} else {
-			msg = tgbotapi.NewMessage(chatID, fmt.Sprintf("_%s_\n\n*%s*\n\n `%s`\n", m.Topic, m.Title, m.Message))
+			msg = tgbotapi.NewMessage(chatID, fmt.Sprintf("Topic: %s \n\nTitle: %s \n\nMessage: %s \n", m.Topic, m.Title, m.Message))
 		}
-		msg.ParseMode = "Markdown"
-		s.bot.Send(msg)
+		_, err := s.bot.Send(msg)
+		if err != nil {
+			s.logger.Sugar().Errorf("[subscriber] [sendToChats] [Send] Error sending message to chat: %d, %s\n", chatID, err.Error())
+		}
 	}
 }
 
