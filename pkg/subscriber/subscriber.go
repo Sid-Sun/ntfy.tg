@@ -123,7 +123,7 @@ func (s Subscriber) getSubscribeURL(since int64) string {
 		topics = append(topics, topic)
 	}
 	allTopics := strings.Join(topics, ",")
-	return fmt.Sprintf("wss://ntfy.sh/%s/ws?since=%d", allTopics, since)
+	return fmt.Sprintf("wss://%s/%s/ws?since=%d", config.GetConfig().GetNtfyDomain(), allTopics, since)
 }
 
 func (s Subscriber) sendToChats(m message) {

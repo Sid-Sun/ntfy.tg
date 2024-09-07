@@ -20,6 +20,7 @@ type Config struct {
 	Bot           BotConfig
 	adminChatId   int64
 	environment   string
+	ntfyDomain    string
 	PingURLs      []string
 }
 
@@ -33,15 +34,21 @@ func (c Config) GetAdminChatID() int64 {
 	return c.adminChatId
 }
 
+func (c Config) GetNtfyDomain() string {
+	return c.ntfyDomain
+}
+
 // Load reads all config from env to config
 func Load() Config {
 	viper.AutomaticEnv()
+	viper.SetDefault("NTFY_DOMAIN", "ntfy.sh")
 	cfg = Config{
 		environment: viper.GetString("APP_ENV"),
 		adminChatId: viper.GetInt64("ADMIN_CHAT_ID"),
 		Bot: BotConfig{
 			tkn: viper.GetString("API_TOKEN"),
 		},
+		ntfyDomain: viper.GetString("NTFY_DOMAIN"),
 		StorageEngine: StorageEngineConfig{
 			URL:            viper.GetString("SE_URL"),
 			ObjectID:       viper.GetString("SE_OBJ_ID"),
