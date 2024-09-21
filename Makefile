@@ -11,3 +11,6 @@ tidy:
 
 serve: fmt vet
 	go run cmd/*.go
+
+build: fmt vet
+	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/ntfy.tg ./cmd
