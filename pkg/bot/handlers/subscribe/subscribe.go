@@ -1,42 +1,38 @@
 package subscribe
 
 import (
-	"strings"
+	"errors"
+	"fmt"
+	"log/slog"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
-	"go.uber.org/zap"
+	tele "gopkg.in/telebot.v4"
 )
 
 // Handler handles all repeat requests
-func Handler(bot *tgbotapi.BotAPI, update tgbotapi.Update, logger *zap.Logger) {
-	logger.Info("[Subscribe] [Attempt]")
+func Hnadler(c tele.Context) error {
+	slog.Info("[Subscribe] [Attempt]")
 
-	chatID := update.Message.Chat.ID
-	args := strings.Split(update.Message.CommandArguments(), " ")
-	topic := args[0]
-	if len(args) != 1 || topic == "" {
-		msg := tgbotapi.NewMessage(chatID, "invalid message, to subscribe send: /subscribe <topic>")
-		bot.Send(msg)
-		return
+	chatID := c.Chat().ID
+	topic := c.Message().Payload
+	if topic == "" {
+		c.Reply("invalid message, to subscribe send: /subscribe <topic>")
+		return errors.New("no topic provided")
 	}
 
 	validTopic := allowedTopicRegex.MatchString(topic)
 	if !validTopic {
-		msg := tgbotapi.NewMessage(chatID, "invalid topic, to subscribe send: /subscribe <topic>")
-		bot.Send(msg)
-		return
+		c.Reply("invalid topic, to subscribe send: /subscribe <topic>")
+		return errors.New("invalid topic provided")
 	}
 
 	subscriptionmanager.SubscribeChatToTopic(topic, chatID)
-	msg := tgbotapi.NewMessage(chatID, "topic test successful, you are now subscribed to topic")
-	msg.ReplyToMessageID = update.Message.MessageID
 
-	_, err := bot.Send(msg)
-	if err != nil {
-		logger.Sugar().Errorf("[Subscribe] [Send] %s", err.Error())
-		return
+	if err := c.Reply("topic test successful, you are now subscribed to topic"); err != nil {
+		slog.Error(fmt.Sprintf("[Subscribe] [Send] %s", err.Error()))
+		return err
 	}
 
-	logger.Info("[Subscribe] [Success]")
+	slog.Info("[Subscribe] [Success]")
+	return nil
 }

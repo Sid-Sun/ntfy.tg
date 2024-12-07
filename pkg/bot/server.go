@@ -20,5 +20,5 @@ func StartBot(cfg config.Config, logger *zap.Logger) {
 	go monitoring.PeriodicNotify(logger)
 
 	logger.Info("[StartBot] Started Bot")
-	router.NewUpdateChan().ListenAndServe()
+	router.ListenAndServe()
 }

@@ -1,35 +1,33 @@
 package unsubscribeall
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
-	"go.uber.org/zap"
+	tele "gopkg.in/telebot.v4"
 )
 
 // Handler handles all repeat requests
-func Handler(bot *tgbotapi.BotAPI, update tgbotapi.Update, logger *zap.Logger) {
-	logger.Info("[UnSubscribeAll] [Attempt]")
+func Handler(c tele.Context) error {
+	slog.Info("[UnSubscribeAll] [Attempt]")
 
-	chatID := update.Message.Chat.ID
-	consent := update.Message.CommandArguments()
+	chatID := c.Chat().ID
+	consent := c.Message().Payload
 	if consent != "im sure" {
-		msg := tgbotapi.NewMessage(chatID, "To unsubscribe from all topics, send: /unsubscribeall im sure")
-		bot.Send(msg)
-		return
+		c.Reply("To unsubscribe from all topics, send: /unsubscribeall im sure")
+		return errors.New("invalid consent")
 	}
 
 	topics := subscriptionmanager.UnSubscribeChatFromAllTopics(chatID)
-	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("You are now unsubscribed from: \n- %s", strings.Join(topics, "\n- ")))
-	msg.ReplyToMessageID = update.Message.MessageID
 
-	_, err := bot.Send(msg)
-	if err != nil {
-		logger.Sugar().Errorf("[UnSubscribeAll] [Send] %s", err.Error())
-		return
+	if err := c.Reply(fmt.Sprintf("You are now unsubscribed from: \n- %s", strings.Join(topics, "\n- "))); err != nil {
+		slog.Error(fmt.Sprintf("[UnSubscribeAll] [Send] %s", err.Error()))
+		return err
 	}
 
-	logger.Info("[UnSubscribeAll] [Success]")
+	slog.Info("[UnSubscribeAll] [Success]")
+	return nil
 }
