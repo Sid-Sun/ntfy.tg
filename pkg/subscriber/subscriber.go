@@ -7,16 +7,16 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gorilla/websocket"
 	"github.com/leonklingele/passphrase"
 	"github.com/sid-sun/ntfy.tg/cmd/config"
 	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
 	"go.uber.org/zap"
+	tele "gopkg.in/telebot.v4"
 )
 
 type Subscriber struct {
-	bot             *tgbotapi.BotAPI
+	bot             *tele.Bot
 	restartChan     chan bool
 	logger          *zap.Logger
 	lastMessageTime int64
@@ -128,21 +128,20 @@ func (s Subscriber) getSubscribeURL(since int64) string {
 
 func (s Subscriber) sendToChats(m message) {
 	subs := subscriptionmanager.GetSubscriptions()
+	var msg string
+	if m.Title == "" {
+		msg = fmt.Sprintf("Topic: %s \n\nMessage: %s \n", m.Topic, m.Message)
+	} else {
+		msg = fmt.Sprintf("Topic: %s \n\nTitle: %s \n\nMessage: %s \n", m.Topic, m.Title, m.Message)
+	}
 	for _, chatID := range subs[m.Topic] {
-		var msg tgbotapi.MessageConfig
-		if m.Title == "" {
-			msg = tgbotapi.NewMessage(chatID, fmt.Sprintf("Topic: %s \n\nMessage: %s \n", m.Topic, m.Message))
-		} else {
-			msg = tgbotapi.NewMessage(chatID, fmt.Sprintf("Topic: %s \n\nTitle: %s \n\nMessage: %s \n", m.Topic, m.Title, m.Message))
-		}
-		_, err := s.bot.Send(msg)
-		if err != nil {
+		if _, err := s.bot.Send(tele.ChatID(chatID), msg); err != nil {
 			s.logger.Sugar().Errorf("[subscriber] [sendToChats] [Send] Error sending message to chat: %d, %s\n", chatID, err.Error())
 		}
 	}
 }
 
-func NewSubscriber(bot *tgbotapi.BotAPI, rc chan bool, logger *zap.Logger) Subscriber {
+func NewSubscriber(bot *tele.Bot, rc chan bool, logger *zap.Logger) Subscriber {
 	return Subscriber{
 		bot:         bot,
 		restartChan: rc,
@@ -151,6 +150,5 @@ func NewSubscriber(bot *tgbotapi.BotAPI, rc chan bool, logger *zap.Logger) Subsc
 }
 
 func (s Subscriber) informAdmin(text string) {
-	msg := tgbotapi.NewMessage(config.GetConfig().GetAdminChatID(), text)
-	s.bot.Send(msg)
+	s.bot.Send(tele.ChatID(config.GetConfig().GetAdminChatID()), text)
 }

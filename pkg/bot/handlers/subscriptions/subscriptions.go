@@ -2,34 +2,33 @@ package subscriptions
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
-	"go.uber.org/zap"
+	tele "gopkg.in/telebot.v4"
 )
 
 // Handler handles all repeat requests
-func Handler(bot *tgbotapi.BotAPI, update tgbotapi.Update, logger *zap.Logger) {
-	logger.Info("[Subscriptions] [Attempt]")
+func Handler(c tele.Context) error {
+	slog.Info("[Subscriptions] [Attempt]")
 
-	chatID := update.Message.Chat.ID
+	chatID := c.Chat().ID
 
 	// Get chat subscriptions and send them to the user
 	topics := subscriptionmanager.GetChatSubscriptions(chatID)
-	var msg tgbotapi.MessageConfig
+	var msg string
 	if len(topics) == 0 {
-		msg = tgbotapi.NewMessage(chatID, "You are not subscribed to any topics, to subscribe to a topic use /subscribe <topic>")
+		msg = "You are not subscribed to any topics, to subscribe to a topic use /subscribe <topic>"
 	} else {
-		msg = tgbotapi.NewMessage(chatID, fmt.Sprintf("You are subscribed to: \n- %s", strings.Join(topics, "\n- ")))
-	}
-	msg.ReplyToMessageID = update.Message.MessageID
-
-	_, err := bot.Send(msg)
-	if err != nil {
-		logger.Sugar().Errorf("[Subscriptions] [Send] %s", err.Error())
-		return
+		msg = fmt.Sprintf("You are subscribed to: \n- %s", strings.Join(topics, "\n- "))
 	}
 
-	logger.Info("[Subscriptions] [Success]")
+	if err := c.Reply(msg); err != nil {
+		slog.Error(fmt.Sprintf("[Subscriptions] [Send] %s", err.Error()))
+		return err
+	}
+
+	slog.Info("[Subscriptions] [Success]")
+	return nil
 }
