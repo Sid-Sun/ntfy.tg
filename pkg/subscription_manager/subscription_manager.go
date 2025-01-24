@@ -30,6 +30,7 @@ func SubscribeChatToTopic(topic string, chatID int64) {
 		}
 	}
 	subscriptions[topic] = append(subscriptions[topic], chatID)
+	saveToSE()
 }
 
 func GetChatSubscriptions(chatID int64) []string {
