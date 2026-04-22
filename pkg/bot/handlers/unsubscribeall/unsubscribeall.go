@@ -21,6 +21,16 @@ func Handler(c tele.Context) error {
 		return errors.New("invalid consent")
 	}
 
+	subTopics := subscriptionmanager.GetChatSubscriptions(chatID)
+	if len(subTopics) == 0 {
+		msg := "You are not subscribed to any topics, to subscribe to a topic use /subscribe <topic>"
+		if err := c.Reply(msg); err != nil {
+			slog.Error(fmt.Sprintf("[Unsubscribeall] [GetChatSubscriptions] [Send] %s", err.Error()))
+			return err
+		}
+		return nil
+	}
+
 	topics := subscriptionmanager.UnSubscribeChatFromAllTopics(chatID)
 
 	if err := c.Reply(fmt.Sprintf("You are now unsubscribed from: \n- %s", strings.Join(topics, "\n- "))); err != nil {

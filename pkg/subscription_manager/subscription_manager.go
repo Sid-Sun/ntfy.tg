@@ -58,7 +58,7 @@ func UnSubscribeChatFromAllTopics(chatID int64) []string {
 			}
 			return false
 		})
-		if len(subscriptions[topic]) == 1 && subscriptions[topic][0] == 0 {
+		if len(subscriptions[topic]) == 0 {
 			delete(subscriptions, topic)
 		}
 	}
@@ -82,7 +82,7 @@ func UnSubscribeChatToTopic(topic string, chatID int64) {
 		}
 		return false
 	})
-	if changed && len(subscriptions[topic]) == 1 && subscriptions[topic][0] == 0 {
+	if changed && len(subscriptions[topic]) == 0 {
 		delete(subscriptions, topic)
 	}
 	subscriptionsMutex.Unlock()
