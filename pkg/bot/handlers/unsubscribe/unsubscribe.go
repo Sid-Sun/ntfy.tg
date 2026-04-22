@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
 	tele "gopkg.in/telebot.v4"
@@ -18,6 +19,24 @@ func Handler(c tele.Context) error {
 	if topic == "" {
 		c.Reply("Invalid message, to unsubscribe send: /unsubscribe <topic>")
 		return errors.New("no topic provided")
+	}
+
+	subTopics := subscriptionmanager.GetChatSubscriptions(chatID)
+	if len(subTopics) == 0 {
+		msg := "You are not subscribed to any topics, to subscribe to a topic use /subscribe <topic>"
+		if err := c.Reply(msg); err != nil {
+			slog.Error(fmt.Sprintf("[Unsubscribeall] [GetChatSubscriptions] [noTopics] [Send] %s", err.Error()))
+			return err
+		}
+		return nil
+	}
+	if !slices.Contains(subTopics, topic) {
+		msg := "You are not subscribed to this topic, to subscribe to a topic use /subscribe <topic>"
+		if err := c.Reply(msg); err != nil {
+			slog.Error(fmt.Sprintf("[Unsubscribeall] [GetChatSubscriptions] [notSub] [Send] %s", err.Error()))
+			return err
+		}
+		return nil
 	}
 
 	subscriptionmanager.UnSubscribeChatToTopic(topic, chatID)
