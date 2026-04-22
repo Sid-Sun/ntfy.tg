@@ -36,7 +36,9 @@ func (s Subscriber) Subscribe() {
 		if since == 0 {
 			since = time.Now().Unix()
 		}
-		conn, _, err = websocket.DefaultDialer.Dial(s.getSubscribeURL(since), nil)
+		url := s.getSubscribeURL(since)
+		s.logger.Sugar().Infof("[subscriber] [Subscribe] [startConnection] connection url: %s", url)
+		conn, _, err = websocket.DefaultDialer.Dial(url, nil)
 		if err == nil {
 			conn.SetPingHandler(nil)
 			s.logger.Info("[subscriber] [Subscribe] [startConnection] connected to ntfy")
@@ -136,6 +138,10 @@ func (s Subscriber) sendToChats(m message) {
 	}
 	for _, chatID := range subs[m.Topic] {
 		if _, err := s.bot.Send(tele.ChatID(chatID), msg); err != nil {
+			if strings.Contains(err.Error(), "bot was blocked by the user") {
+				subscriptionmanager.UnSubscribeChatFromAllTopics(chatID)
+				return
+			}
 			s.logger.Sugar().Errorf("[subscriber] [sendToChats] [Send] Error sending message to chat: %d, %s\n", chatID, err.Error())
 		}
 	}

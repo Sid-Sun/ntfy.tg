@@ -24,6 +24,8 @@ func PeriodicNotify(logger *zap.Logger) {
 				logger.Sugar().Errorf("[Monitoring] [PeriodicNotify] failed to ping %s - error: %s", url, err.Error())
 				continue
 			}
+			// Close the response body to prevent leaking file descriptors and memory on each ping iteration.
+			res.Body.Close()
 			if res.StatusCode != http.StatusOK {
 				logger.Sugar().Errorf("[Monitoring] [PeriodicNotify] ping %s status code not OK: %d", url, res.StatusCode)
 			}
