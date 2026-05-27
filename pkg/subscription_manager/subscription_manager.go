@@ -9,6 +9,7 @@ import (
 
 	"github.com/fitant/storage-engine-go/storageengine"
 	"github.com/sid-sun/ntfy.tg/cmd/config"
+	"github.com/sid-sun/ntfy.tg/pkg/metrics"
 )
 
 var subscriptionsObject *storageengine.Object
@@ -17,11 +18,13 @@ var subscriptions map[string][]int64
 var restartChan chan bool
 
 func SubscribeChatToTopic(topic string, chatID int64) {
+	metrics.InitTopicMetrics(topic)
 	if subscriptions[topic] == nil {
 		subscriptionsMutex.Lock()
 		subscriptions[topic] = []int64{chatID}
 		subscriptionsMutex.Unlock()
 		saveToSE()
+		updateGauges()
 		return
 	}
 	for _, id := range subscriptions[topic] {
@@ -31,6 +34,7 @@ func SubscribeChatToTopic(topic string, chatID int64) {
 	}
 	subscriptions[topic] = append(subscriptions[topic], chatID)
 	saveToSE()
+	updateGauges()
 }
 
 func GetChatSubscriptions(chatID int64) []string {
@@ -66,6 +70,7 @@ func UnSubscribeChatFromAllTopics(chatID int64) []string {
 	if changed {
 		saveToSE()
 	}
+	updateGauges()
 	return unsubscribedTopics
 }
 
@@ -89,6 +94,7 @@ func UnSubscribeChatToTopic(topic string, chatID int64) {
 	if changed {
 		saveToSE()
 	}
+	updateGauges()
 }
 
 func GetSubscriptions() map[string][]int64 {
@@ -107,6 +113,10 @@ func InitSubscriptions(rsc chan bool) {
 	// 		log.Printf("Subscribed to %s: %d\n", topic, chatID)
 	// 	}
 	// }
+	for topic := range subscriptions {
+		metrics.InitTopicMetrics(topic)
+	}
+	updateGauges()
 }
 
 func saveToSE() {
@@ -155,4 +165,18 @@ func loadDataFromSE() {
 			log.Print(err)
 		}
 	}
+}
+
+// updateGauges recalculates and sets the subscription-related Prometheus gauges.
+func updateGauges() {
+	topicCount := len(subscriptions)
+	uniqueUsers := make(map[int64]struct{})
+	subCount := 0
+	for _, chats := range subscriptions {
+		subCount += len(chats)
+		for _, chatID := range chats {
+			uniqueUsers[chatID] = struct{}{}
+		}
+	}
+	metrics.UpdateSubscriptionGauges(topicCount, len(uniqueUsers), subCount)
 }

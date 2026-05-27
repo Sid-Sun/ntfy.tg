@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/leonklingele/passphrase"
 	"github.com/sid-sun/ntfy.tg/cmd/config"
+	"github.com/sid-sun/ntfy.tg/pkg/metrics"
 	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
@@ -42,6 +43,7 @@ func (s Subscriber) Subscribe() {
 		if err == nil {
 			conn.SetPingHandler(nil)
 			s.logger.Info("[subscriber] [Subscribe] [startConnection] connected to ntfy")
+			metrics.RecordWebSocketConnect()
 			go s.listenForMessages(conn)
 			return nil
 		}
@@ -95,16 +97,18 @@ func (s Subscriber) listenForMessages(conn *websocket.Conn) {
 			// this error is thrown when conn is closed by Subscribe for a restart
 			// if it is not handled, a restart loop is triggered
 			if strings.Contains(err.Error(), "use of closed network connection") {
+				metrics.RecordWebSocketDisconnect("closed")
 				return
 			}
 
 			// we want to restart here as an error here means the connection has broken
 			// the message to look for is "connection timed out" but this works too, no quirks so far
+			metrics.RecordWebSocketDisconnect("error")
 			s.restartChan <- false
 			return
 		}
 
-		// s.logger.Sugar().Infof("[subscriber] [listener] Received a new message, time since last message: %d\n", (time.Now().Unix() - s.lastMessageTime))
+		metrics.RecordMessageReceived()
 
 		// handle message
 		var m message
@@ -129,6 +133,13 @@ func (s Subscriber) getSubscribeURL(since int64) string {
 }
 
 func (s Subscriber) sendToChats(m message) {
+	start := time.Now()
+	defer func() {
+		metrics.ObserveForwardDuration(m.Topic, time.Since(start))
+	}()
+
+	metrics.RecordMessageForwarded(m.Topic)
+
 	subs := subscriptionmanager.GetSubscriptions()
 	var msg string
 	if m.Title == "" {
@@ -139,10 +150,14 @@ func (s Subscriber) sendToChats(m message) {
 	for _, chatID := range subs[m.Topic] {
 		if _, err := s.bot.Send(tele.ChatID(chatID), msg); err != nil {
 			if strings.Contains(err.Error(), "bot was blocked by the user") {
+				metrics.RecordForwardError(m.Topic, "blocked")
 				subscriptionmanager.UnSubscribeChatFromAllTopics(chatID)
 				return
 			}
+			metrics.RecordForwardError(m.Topic, "send_error")
 			s.logger.Sugar().Errorf("[subscriber] [sendToChats] [Send] Error sending message to chat: %d, %s\n", chatID, err.Error())
+		} else {
+			metrics.RecordChatDelivery(m.Topic)
 		}
 	}
 }

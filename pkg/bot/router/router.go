@@ -9,6 +9,7 @@ import (
 	"github.com/sid-sun/ntfy.tg/pkg/bot/handlers/subscriptions"
 	"github.com/sid-sun/ntfy.tg/pkg/bot/handlers/unsubscribe"
 	"github.com/sid-sun/ntfy.tg/pkg/bot/handlers/unsubscribeall"
+	"github.com/sid-sun/ntfy.tg/pkg/metrics"
 	"go.uber.org/zap"
 	tele "gopkg.in/telebot.v4"
 )
@@ -23,10 +24,12 @@ func (b bot) ListenAndServe() {
 	b.logger.Info(fmt.Sprintf("[StartBot] Started Bot: %s", b.bot.Me.Username))
 	// niceties
 	b.bot.Handle("/start", func(ctx tele.Context) error {
+		metrics.RecordBotCommand("start")
 		return ctx.Reply("Welcome to ntfy.tg, to subscribe to a topic send: /subscribe <topic> to see help, send: /help")
 	})
 	helpMessage := "Hi! Here are my commands:\n/subscribe <topic> to subscribe to a topic\n/unsubscribe <topic> unsubscribe from a topic\n/unsubscribeall ⚠️ to unsub from all topics ⚠️\n/subscriptions to list your subs"
 	helpHandler := func(ctx tele.Context) error {
+		metrics.RecordBotCommand("help")
 		return ctx.Reply(helpMessage)
 	}
 	b.bot.Handle("/help", helpHandler)

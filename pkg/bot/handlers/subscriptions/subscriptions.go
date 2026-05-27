@@ -5,12 +5,14 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/sid-sun/ntfy.tg/pkg/metrics"
 	subscriptionmanager "github.com/sid-sun/ntfy.tg/pkg/subscription_manager"
 	tele "gopkg.in/telebot.v4"
 )
 
 // Handler handles all repeat requests
 func Handler(c tele.Context) error {
+	metrics.RecordBotCommand("subscriptions")
 	slog.Info("[Subscriptions] [Attempt]")
 
 	chatID := c.Chat().ID

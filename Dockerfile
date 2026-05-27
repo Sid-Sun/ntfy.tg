@@ -12,4 +12,6 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/app
 COPY --from=build /build/bin/ntfy.tg .
 
+EXPOSE 9090
+
 CMD [ "/root/app/ntfy.tg" ]
